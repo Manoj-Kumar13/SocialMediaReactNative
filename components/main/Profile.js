@@ -1,13 +1,29 @@
 import React, { useEffect, useState } from "react";
-import { StyleSheet, Text, View, Image, FlatList, Button } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  View,
+  Image,
+  FlatList,
+  Button,
+  TouchableHighlight,
+} from "react-native";
 import firebase from "firebase";
 require("firebase/firestore");
+import { clearData, fetchUser } from "../../redux/actions/index";
 import { connect } from "react-redux";
+import { bindActionCreators } from "redux";
+import * as ImagePicker from "expo-image-picker";
+import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
+require("firebase/firestore");
+require("firebase/firebase-storage");
 
 function Profile(props) {
   const [userPosts, setUserPosts] = useState([]);
   const [user, setUser] = useState(null);
   const [following, setFollowing] = useState(false);
+  const [imageURL, setImageURL] = useState(null);
+  const [flag, setFlag] = useState(0);
 
   useEffect(() => {
     const { currentUser, posts } = props;
@@ -15,6 +31,11 @@ function Profile(props) {
     if (props.route.params.uid === firebase.auth().currentUser.uid) {
       setUser(currentUser);
       setUserPosts(posts);
+      {
+        currentUser.downloadURL
+          ? setImageURL(currentUser.downloadURL)
+          : setImageURL(null);
+      }
     } else {
       firebase
         .firestore()
@@ -24,6 +45,11 @@ function Profile(props) {
         .then((snapshot) => {
           if (snapshot.exists) {
             setUser(snapshot.data());
+            {
+              snapshot.data().downloadURL
+                ? setImageURL(snapshot.data().downloadURL)
+                : setImageURL(null);
+            }
           } else {
             console.log("Does not exist");
           }
@@ -80,11 +106,94 @@ function Profile(props) {
     return <View />;
   }
 
+  const editProfile = () => {
+    //Permission for picking image from gallery
+    (async () => {
+      if (Platform.OS !== "web") {
+        const { status } =
+          await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== "granted") {
+          alert("Sorry, we need camera roll permissions to make this work!");
+        }
+      } else {
+        const { status } =
+          await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== "granted") {
+          alert("Sorry, we need camera roll permissions to make this work!");
+        }
+      }
+    })();
+    pickImage();
+  };
+
+  const pickImage = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.6,
+    });
+
+    console.log("result: ", result);
+    const childPath = `profilePic/${
+      firebase.auth().currentUser.uid
+    }/currentProfilePic`;
+
+    const response = await fetch(result.uri);
+    const blob = await response.blob();
+
+    const task = firebase.storage().ref().child(childPath).put(blob);
+
+    //task
+    const taskProgress = (snapshot) => {
+      console.log(`transferred: ${snapshot.bytesTransferred}`);
+    };
+
+    const taskCompleted = () => {
+      task.snapshot.ref.getDownloadURL().then((snapshot) => {
+        savePostData(snapshot);
+      });
+    };
+
+    const taskError = (snapshot) => {
+      console.log(snapshot);
+    };
+
+    task.on("state_changed", taskProgress, taskError, taskCompleted);
+    //end
+  };
+
+  const savePostData = (downloadURL) => {
+    firebase
+      .firestore()
+      .collection("users")
+      .doc(firebase.auth().currentUser.uid)
+      .update({
+        downloadURL,
+      });
+    setImageURL(downloadURL);
+  };
+
+  if (imageURL === null) {
+    setImageURL(user.downloadURL);
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.infoContainer}>
-        <Text style={styles.username}>{user.name}</Text>
-        <Text style={styles.email}>{user.email}</Text>
+        <View style={styles.profileInfo}>
+          <View style={styles.profilePic}>
+            {imageURL != null ? (
+              <Image style={styles.profileImage} source={{ uri: imageURL }} />
+            ) : (
+              <MaterialCommunityIcons name="account-circle" size={80} />
+            )}
+          </View>
+          <View style={styles.profileName}>
+            <Text style={styles.username}>{user.name}</Text>
+            <Text style={styles.email}>{user.email}</Text>
+          </View>
+        </View>
 
         {props.route.params.uid !== firebase.auth().currentUser.uid ? (
           <View>
@@ -95,7 +204,12 @@ function Profile(props) {
             )}
           </View>
         ) : (
-          <Button title="LogOut" onPress={() => onLogout()} />
+          <View>
+            <TouchableHighlight style={styles.button}>
+              <Button title="Edit Profile" onPress={() => editProfile()} />
+            </TouchableHighlight>
+            <Button title="LogOut" onPress={() => onLogout()} />
+          </View>
         )}
       </View>
       <View style={styles.galleryContainer}>
@@ -127,14 +241,18 @@ const styles = StyleSheet.create({
     // marginTop: 40,
   },
   infoContainer: {
-    margin: 20,
+    margin: 10,
   },
   image: {
     flex: 1,
     aspectRatio: 1 / 1,
   },
+  galleryContainer: {
+    padding: 2,
+  },
   imageContainer: {
     flex: 1 / 3,
+    padding: 1,
   },
   username: {
     fontSize: 20,
@@ -150,6 +268,25 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 80,
   },
+  button: {
+    marginBottom: 10,
+  },
+  profileInfo: {
+    display: "flex",
+    flexDirection: "row",
+  },
+  profilePic: {
+    paddingRight: 10,
+    marginBottom: 5,
+  },
+  profileName: {
+    justifyContent: "center",
+  },
+  profileImage: {
+    flex: 1,
+    aspectRatio: 1 / 1,
+    borderRadius: 50,
+  },
 });
 
 const mapStateToProps = (store) => ({
@@ -158,4 +295,7 @@ const mapStateToProps = (store) => ({
   following: store.userState.following,
 });
 
-export default connect(mapStateToProps, null)(Profile);
+const mapDispatchProps = (dispatch) =>
+  bindActionCreators({ clearData, fetchUser }, dispatch);
+
+export default connect(mapStateToProps, mapDispatchProps)(Profile);

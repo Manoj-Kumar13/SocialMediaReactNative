@@ -32,13 +32,13 @@ export class Login extends Component {
         <View style={styles.container}>
           <TextInput
             style={styles.textInput}
-            placeholder="email"
+            placeholder="Email"
             textContentType="emailAddress"
             onChangeText={(email) => this.setState({ email })}
           />
           <TextInput
             style={styles.textInput}
-            placeholder="password"
+            placeholder="Password"
             secureTextEntry={true}
             onChangeText={(password) => this.setState({ password })}
           />
@@ -71,6 +71,6 @@ const styles = StyleSheet.create({
   },
   button: {
     padding: 50,
-    marginBottom: 100,
+    marginBottom: 10,
   },
 });

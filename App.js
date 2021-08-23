@@ -9,13 +9,7 @@ import thunk from "redux-thunk";
 const store = createStore(rootReducer, applyMiddleware(thunk));
 
 const firebaseConfig = {
-  apiKey: "your api key",
-  authDomain: "your auth domain",
-  projectId: "instagram-rn-a989e",
-  storageBucket: "instagram-rn-a989e.appspot.com",
-  messagingSenderId: "your id",
-  appId: "your id",
-  measurementId: "G-54XVYTVHEZ",
+  //firebase config object
 };
 
 if (firebase.apps.length === 0) {
